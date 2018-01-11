@@ -53,7 +53,7 @@ class LongHallway(Environment):
 
     def calculate_reward(self, actions):
         if self.s == self.hallway_length:
-            return self.max_episode_length - 1
+            return 0
         else:
             return -1
 

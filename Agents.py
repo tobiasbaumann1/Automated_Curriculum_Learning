@@ -1,8 +1,8 @@
 import numpy as np
 import tensorflow as tf
 
-np.random.seed(2)
-tf.set_random_seed(2)
+np.random.seed(1)
+tf.set_random_seed(1)
 
 class Agent(object):
     def __init__(self, n_actions, n_features, learning_rate=0.001, gamma = 0.95):
@@ -98,6 +98,10 @@ class DeepQNetwork(Agent):
                 b2 = tf.get_variable('b2', [1, self.n_actions], initializer=b_initializer, collections=c_names)
                 self.q_next = tf.matmul(l1, w2) + b2
 
+    def reset(self):
+        #tf.reset_default_graph()
+        self.sess.run(tf.global_variables_initializer())
+
     def store_transition(self, s, a, r, s_):
         if not hasattr(self, 'memory_counter'):
             self.memory_counter = 0
@@ -109,6 +113,11 @@ class DeepQNetwork(Agent):
         self.memory[index, :] = transition
 
         self.memory_counter += 1
+
+    def flush_memory(self):
+        self.memory_counter = 0
+        # initialize zero memory [s, a, r, s_]
+        self.memory = np.zeros((self.memory_size, self.n_features * 2 + 2))
 
     def choose_action(self, observation):
         # to have batch dimension when feed into tf placeholder
@@ -126,7 +135,6 @@ class DeepQNetwork(Agent):
         # check to replace target parameters
         if self.learn_step_counter % self.replace_target_iter == 0:
             self.sess.run(self.replace_target_op)
-            print('\ntarget_params_replaced\n')
 
         # sample batch memory from all memory
         if self.memory_counter > self.memory_size:
