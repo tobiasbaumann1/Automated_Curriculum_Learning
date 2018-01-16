@@ -37,7 +37,7 @@ class Environment(object):
 
 class LongHallway(Environment):
     def __init__(self, hallway_length, MAX_EPISODE_LENGTH):
-        super().__init__(3, 1, MAX_EPISODE_LENGTH)
+        super().__init__(3, 2, MAX_EPISODE_LENGTH) #2 features: task label (the hallway length) and current position
         self.hallway_length = hallway_length
         self.reset()
 
@@ -49,13 +49,13 @@ class LongHallway(Environment):
         return np.zeros(1) # start at the left of the hallway
 
     def state_to_observation(self):
-        return self.s
+        return np.array([self.s,self.hallway_length])
 
     def calculate_reward(self, actions):
         if self.s == self.hallway_length:
-            return 0
+            return self.hallway_length / 100
         else:
-            return -1
+            return 0
 
     def is_done(self):
         return (self.s == self.hallway_length) or super().is_done()
