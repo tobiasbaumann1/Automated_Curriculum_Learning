@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy import stats
 from Agents import DeepQNetwork
 from ACL import Bandit
@@ -9,7 +10,7 @@ MAX_HALLWAY_LENGTH = 100
 N_TASKS = 10
 BUFFER_SIZE = 10
 MAX_EPISODE_LENGTH = 500
-N_TOTAL_EPISODES = 100
+N_TOTAL_EPISODES = 1000
 
 
 def run(env,agent,n_episodes):
@@ -64,18 +65,22 @@ def train_with_manual_curriculum(agent):
         task_labels.append([hallway_length]*n_episodes)
     return rewards, task_labels
 
+def init_rewards_buffer(agent):
+    rewards_buffer = np.zeros([N_TASKS, BUFFER_SIZE])
+    for i in range(N_TASKS):
+        hallway_length = tasks[i]
+        env = LongHallway(hallway_length,MAX_EPISODE_LENGTH)
+        rewards_buffer[i] = np.array(run(env, agent, BUFFER_SIZE))
+    return rewards_buffer
+
 def train_with_bandit_ACL(agent):
     agent.reset()
     bandit = Bandit(N_TASKS)    
     rewards = []
     task_labels = []
     learning_progress_list = []
-    rewards_buffer = np.zeros([N_TASKS, BUFFER_SIZE])
+    rewards_buffer = init_rewards_buffer(agent)
     trial_count = np.zeros(N_TASKS)+BUFFER_SIZE
-    for i in range(N_TASKS):
-        hallway_length = tasks[i]
-        env = LongHallway(hallway_length,MAX_EPISODE_LENGTH)
-        rewards_buffer[i] = np.array(run(env, agent, BUFFER_SIZE))
     for _ in range(N_TOTAL_EPISODES-N_TASKS*BUFFER_SIZE):
         idx = bandit.sample_arm()
         task_labels.append(idx)
@@ -101,12 +106,8 @@ def train_with_RL_ACL(agent):
                       str = 'meta_net',
                       learning_rate=0.01, e_greedy=0.7,
                       replace_target_iter=5, memory_size=2000)
-    rewards_buffer = np.zeros([N_TASKS, BUFFER_SIZE])
-    trial_count = np.zeros(N_TASKS)
-    for i in range(N_TASKS):
-        hallway_length = tasks[i]
-        env = LongHallway(hallway_length,MAX_EPISODE_LENGTH)
-        rewards_buffer[i] = np.array(run(env, agent, BUFFER_SIZE))
+    trial_count = np.zeros(N_TASKS)+BUFFER_SIZE
+    rewards_buffer = init_rewards_buffer(agent)
     for _ in range(N_TOTAL_EPISODES-N_TASKS*BUFFER_SIZE):
         s = calc_slope_on_all_tasks(rewards_buffer, trial_count)
         idx = curr_agent.choose_action(s)
@@ -126,6 +127,14 @@ def train_with_RL_ACL(agent):
         curr_agent.store_transition(s, idx, learning_progress, s_)
         curr_agent.learn()
     return rewards, task_labels, learning_progress_list
+
+def plot_results(data, y_label, str):
+    plt.plot(data)
+    plt.xlabel('Episode')
+    plt.ylabel(y_label)
+    plt.savefig('./'+str)
+    plt.show()
+
 
 if __name__ == "__main__":
     agent = DeepQNetwork(n_actions=3,
@@ -148,4 +157,15 @@ if __name__ == "__main__":
     #Run with RL curriculum
     print('Automated curriculum learning using reinforcement learning...')
     rewards_rl_acl, task_labels_rl_acl, learning_progress_rl_acl = train_with_RL_ACL(agent)
+
+    plot_results(rewards_final_task_only,'Reward','rewards_final_task_only')
+    plot_results(rewards_manual_curr,'Reward','rewards_manual_curr')
+    plot_results(rewards_bandit_acl,'Reward','Rewards_bandit_acl')
+    plot_results(rewards_rl_acl,'Reward','Rewards_rl_acl')
+    plot_results(task_labels_manual_curr,'Hallway length','task_labels_manual_curr')
+    plot_results(task_labels_bandit_acl,'Hallway length','task_labels_bandit_acl')
+    plot_results(task_labels_rl_acl,'Hallway length','task_labels_rl_acl')
+    plot_results(learning_progress_bandit_acl,'Learning progress','learning_progress_bandit_acl')
+    plot_results(learning_progress_rl_acl,'Learning progress','learning_progress_rl_acl')
+
 
