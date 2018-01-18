@@ -8,9 +8,9 @@ from Environments import LongHallway
 MIN_HALLWAY_LENGTH = 10
 MAX_HALLWAY_LENGTH = 100
 N_TASKS = 10
-BUFFER_SIZE = 5
+BUFFER_SIZE = 10
 MAX_EPISODE_LENGTH = 500
-N_TOTAL_EPISODES = 200
+N_TOTAL_EPISODES = 2000
 
 
 def run(env,agent,n_episodes):
@@ -124,7 +124,7 @@ def train_with_RL_ACL(agent):
     curr_agent = DeepQNetwork(n_actions=N_TASKS,
                       n_features=N_TASKS*BUFFER_SIZE,
                       str = 'meta_net',
-                      learning_rate=0.01, e_greedy=0.7,
+                      learning_rate=0.01, e_greedy=0.9, e_greedy_increment = 0.002,
                       replace_target_iter=5, memory_size=100)
     n_trials = np.zeros(N_TASKS)+BUFFER_SIZE
     rewards_buffer = init_rewards_buffer(agent)
@@ -160,7 +160,8 @@ def plot_data(data, y_label, str):
 def plot_n_trials(n_trials, y_label, str):
     plt.plot(np.array(n_trials))
     plt.xlabel('Episode')
-    plt.ylabel(y_label)
+    plt.ylabel(y_label)    
+    plt.title(str)
     plt.legend(tasks)
     plt.savefig('./'+str)
     plt.show()
