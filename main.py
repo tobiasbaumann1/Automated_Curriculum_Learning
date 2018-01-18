@@ -10,7 +10,7 @@ MAX_HALLWAY_LENGTH = 100
 N_TASKS = 10
 BUFFER_SIZE = 10
 MAX_EPISODE_LENGTH = 500
-N_TOTAL_EPISODES = 2000
+N_TOTAL_EPISODES = 1000
 
 
 def run(env,agent,n_episodes):
@@ -92,7 +92,7 @@ def init_rewards_buffer(agent):
         rewards_buffer[i] = np.array(run(env, agent, BUFFER_SIZE))
     return rewards_buffer
 
-def train_with_bandit_ACL(agent):
+def train_with_bandit_ACL(agent, use_slope_as_reward = True):
     agent.reset()
     bandit = Bandit(N_TASKS)    
     rewards = []
@@ -111,20 +111,27 @@ def train_with_bandit_ACL(agent):
         rewards.append(r)
         n_trials[idx] += 1
         n_trials_list.append(n_trials.copy())
-        learning_progress = r - avg_reward_so_far
+        if use_slope_as_reward:
+            learning_progress = calc_slope(np.concatenate([rewards_buffer[idx,(buffer_idx+1):],rewards_buffer[idx,:(buffer_idx+1)]]))
+        else:
+            learning_progress = r - avg_reward_so_far
         learning_progress_list.append(learning_progress)
         bandit.update_weights(idx,abs(learning_progress))
     return rewards, n_trials_list, learning_progress_list
 
-def train_with_RL_ACL(agent):
+def train_with_RL_ACL(agent, use_slope_as_reward= True):
     agent.reset()    
     rewards = []
     n_trials_list = []
     learning_progress_list = []
+    if use_slope_as_reward:
+        name = 'curr_learning_net_slope'
+    else:
+        name = 'curr_learning_net_diff2mean'
     curr_agent = DeepQNetwork(n_actions=N_TASKS,
                       n_features=N_TASKS*BUFFER_SIZE,
-                      str = 'meta_net',
-                      learning_rate=0.01, e_greedy=0.9, e_greedy_increment = 0.002,
+                      str = name,
+                      learning_rate=0.01, e_greedy=0.9, e_greedy_increment = 0.005,
                       replace_target_iter=5, memory_size=100)
     n_trials = np.zeros(N_TASKS)+BUFFER_SIZE
     rewards_buffer = init_rewards_buffer(agent)
@@ -142,7 +149,10 @@ def train_with_RL_ACL(agent):
         n_trials[idx] += 1
         n_trials_list.append(n_trials.copy())
         s_ = np.hstack(rewards_buffer)
-        learning_progress = r - avg_reward_so_far
+        if use_slope_as_reward:
+            learning_progress = calc_slope(np.concatenate([rewards_buffer[idx,(buffer_idx+1):],rewards_buffer[idx,:(buffer_idx+1)]]))
+        else:
+            learning_progress = r - avg_reward_so_far
         learning_progress_list.append(learning_progress)
         print('Learning progress:', learning_progress)
         curr_agent.store_transition(s, idx, learning_progress, s_)
@@ -154,7 +164,7 @@ def plot_data(data, y_label, str):
     plt.xlabel('Episode')
     plt.ylabel(y_label)
     plt.title(str)
-    plt.savefig('./'+str)
+    plt.savefig('./Results/'+str)
     plt.show()
 
 def plot_n_trials(n_trials, y_label, str):
@@ -163,7 +173,7 @@ def plot_n_trials(n_trials, y_label, str):
     plt.ylabel(y_label)    
     plt.title(str)
     plt.legend(tasks)
-    plt.savefig('./'+str)
+    plt.savefig('./Results/'+str)
     plt.show()
 
 
@@ -186,24 +196,34 @@ if __name__ == "__main__":
     rewards_uniform_sampling, n_trials_uniform_sampling = train_with_uniform_samplling(agent)
 
     #Run with bandit curriculum
-    print('Automated curriculum learning using bandit algorithm...')
-    rewards_bandit_acl, n_trials_bandit_acl, learning_progress_bandit_acl = train_with_bandit_ACL(agent)
+    print('Automated curriculum learning using bandit algorithm, using slope as reward...')
+    rewards_bandit_acl_slope, n_trials_bandit_acl_slope, learning_progress_bandit_acl_slope = train_with_bandit_ACL(agent, True)
+    print('Automated curriculum learning using bandit algorithm, using difference to mean as reward...')
+    rewards_bandit_acl_diff2mean, n_trials_bandit_acl_diff2mean, learning_progress_bandit_acl_diff2mean = train_with_bandit_ACL(agent, False)
 
     #Run with RL curriculum
-    print('Automated curriculum learning using reinforcement learning...')
-    rewards_rl_acl, n_trials_rl_acl, learning_progress_rl_acl = train_with_RL_ACL(agent)
+    print('Automated curriculum learning using reinforcement learning, using slope as reward...')
+    rewards_rl_acl_slope, n_trials_rl_acl_slope, learning_progress_rl_acl_slope = train_with_RL_ACL(agent, True)
+    print('Automated curriculum learning using reinforcement learning, using difference to mean as reward...')
+    rewards_rl_acl_diff2mean, n_trials_rl_acl_diff2mean, learning_progress_rl_acl_diff2mean = train_with_RL_ACL(agent, False)
 
     plot_data(rewards_final_task_only,'Reward','rewards_final_task_only')
     plot_data(rewards_manual_curr,'Reward','rewards_manual_curr')
     plot_data(rewards_uniform_sampling,'Reward','rewards_uniform_sampling')
-    plot_data(rewards_bandit_acl,'Reward','rewards_bandit_acl')
-    plot_data(rewards_rl_acl,'Reward','rewards_rl_acl')
+    plot_data(rewards_bandit_acl_slope,'Reward','rewards_bandit_acl_slope')
+    plot_data(rewards_rl_acl_slope,'Reward','rewards_rl_acl_slope')
+    plot_data(rewards_bandit_acl_diff2mean,'Reward','rewards_bandit_acl_diff2mean')
+    plot_data(rewards_rl_acl_diff2mean,'Reward','rewards_rl_acl_diff2mean')
 
     plot_n_trials(n_trials_manual_curr,'Number of trials','n_trials_manual_curr')
     plot_n_trials(n_trials_uniform_sampling,'Number of trials','n_trials_uniform_sampling')
-    plot_n_trials(n_trials_bandit_acl,'Number of trials','n_trials_bandit_acl')
-    plot_n_trials(n_trials_rl_acl,'Number of trials','n_trials_rl_acl')
+    plot_n_trials(n_trials_bandit_acl_slope,'Number of trials','n_trials_bandit_acl_slope')
+    plot_n_trials(n_trials_bandit_acl_diff2mean,'Number of trials','n_trials_bandit_acl_diff2mean')
+    plot_n_trials(n_trials_rl_acl_slope,'Number of trials','n_trials_rl_acl_slope')
+    plot_n_trials(n_trials_rl_acl_diff2mean,'Number of trials','n_trials_rl_acl_diff2mean')
 
-    plot_data(learning_progress_bandit_acl,'Learning progress','learning_progress_bandit_acl')
-    plot_data(learning_progress_rl_acl,'Learning progress','learning_progress_rl_acl')
+    plot_data(learning_progress_bandit_acl_slope,'Learning progress','learning_progress_bandit_acl_slope')
+    plot_data(learning_progress_bandit_acl_diff2mean,'Learning progress','learning_progress_bandit_acl_diff2mean')
+    plot_data(learning_progress_rl_acl_slope,'Learning progress','learning_progress_rl_acl_slope')
+    plot_data(learning_progress_rl_acl_diff2mean,'Learning progress','learning_progress_rl_acl_diff2mean')
 
