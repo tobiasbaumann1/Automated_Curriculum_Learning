@@ -10,7 +10,7 @@ MAX_HALLWAY_LENGTH = 100
 N_TASKS = 10
 BUFFER_SIZE = 10
 MAX_EPISODE_LENGTH = 500
-N_TOTAL_EPISODES = 1000
+N_TOTAL_EPISODES = 200
 
 
 def run(env,agent,n_episodes):
@@ -37,6 +37,16 @@ def run(env,agent,n_episodes):
             observation = observation_
     return reward_list
 
+def run_task(idx,agent):
+    hallway_length = tasks[idx]
+    env = LongHallway(hallway_length,MAX_EPISODE_LENGTH)
+    return run(env,agent,1)[0]
+
+def run_task_n_times(idx,n,agent):
+    hallway_length = tasks[idx]
+    env = LongHallway(hallway_length,MAX_EPISODE_LENGTH)
+    return run(env,agent,n)
+
 def calc_slope(Y):
     X = np.arange(len(Y))
     slope, _, _, _, _ = stats.linregress(X, Y)
@@ -50,35 +60,26 @@ def calc_slope_on_all_tasks(rewards_buffer, n_trials):
     return np.array(slope)
 
 def train_on_final_task_only(agent):    
-    env = LongHallway(MAX_HALLWAY_LENGTH,MAX_EPISODE_LENGTH)
     agent.reset()
-    return run(env,agent,N_TOTAL_EPISODES)
+    return run_task_n_times(N_TASKS-1,N_TOTAL_EPISODES,agent)
 
 def train_with_manual_curriculum(agent):    
     agent.reset()
-    rewards = []
-    n_trials_list = []
-    n_trials = np.zeros(N_TASKS)
+    rewards, n_trials_list, n_trials = [],[],np.zeros(N_TASKS)
+    n_episodes_per_task = int(N_TOTAL_EPISODES/N_TASKS)
     for i in range(N_TASKS):
-        hallway_length = tasks[i]
-        env = LongHallway(hallway_length,MAX_EPISODE_LENGTH)
-        n_episodes = int(N_TOTAL_EPISODES/N_TASKS)
-        rewards.extend(run(env, agent, n_episodes))
-        for _ in range(n_episodes):
+        rewards.extend(run_task_n_times(i, n_episodes_per_task, agent))
+        for _ in range(n_episodes_per_task):
             n_trials[i] += 1
             n_trials_list.append(n_trials.copy())
     return rewards, n_trials_list
 
 def train_with_uniform_samplling(agent):    
     agent.reset()
-    rewards = []
-    n_trials_list = []
-    n_trials = np.zeros(N_TASKS)
+    rewards, n_trials_list, n_trials = [],[],np.zeros(N_TASKS)
     for _ in range(N_TOTAL_EPISODES):
         idx = np.random.choice(N_TASKS)
-        hallway_length = tasks[idx]
-        env = LongHallway(hallway_length,MAX_EPISODE_LENGTH)
-        r = run(env,agent,1)[0]
+        r = run_task(idx,agent)
         rewards.append(r)
         n_trials[idx] += 1
         n_trials_list.append(n_trials.copy())
@@ -87,25 +88,19 @@ def train_with_uniform_samplling(agent):
 def init_rewards_buffer(agent):
     rewards_buffer = np.zeros([N_TASKS, BUFFER_SIZE])
     for i in range(N_TASKS):
-        hallway_length = tasks[i]
-        env = LongHallway(hallway_length,MAX_EPISODE_LENGTH)
-        rewards_buffer[i] = np.array(run(env, agent, BUFFER_SIZE))
+        rewards_buffer[i] = np.array(run_task_n_times(i, BUFFER_SIZE,agent))
     return rewards_buffer
 
 def train_with_bandit_ACL(agent, use_slope_as_reward = True):
     agent.reset()
     bandit = Bandit(N_TASKS)    
-    rewards = []
-    n_trials_list = []
-    learning_progress_list = []
+    rewards, n_trials_list, learning_progress_list = [],[],[]
     rewards_buffer = init_rewards_buffer(agent)
     n_trials = np.zeros(N_TASKS)+BUFFER_SIZE
     for _ in range(N_TOTAL_EPISODES-N_TASKS*BUFFER_SIZE):
         idx = bandit.sample_arm()
-        hallway_length = tasks[idx]
-        env = LongHallway(hallway_length,MAX_EPISODE_LENGTH)
+        r = run_task(idx,agent)        
         buffer_idx = int(n_trials[idx] % BUFFER_SIZE)
-        r = run(env,agent,1)[0]        
         avg_reward_so_far = np.mean(rewards_buffer[idx])
         rewards_buffer[idx][buffer_idx] = r
         rewards.append(r)
@@ -121,26 +116,18 @@ def train_with_bandit_ACL(agent, use_slope_as_reward = True):
 
 def train_with_Contextual_Bandit_ACL(agent, use_slope_as_reward= True):
     agent.reset()    
-    rewards = []
-    n_trials_list = []
-    learning_progress_list = []
-    if use_slope_as_reward:
-        name = 'contextual_bandit_net_slope'
-    else:
-        name = 'contextual_bandit_net_diff2mean'
+    rewards, n_trials_list, learning_progress_list = [],[],[]
     contextual_bandit = Contextual_Bandit(n_arms=N_TASKS,
                       n_features=N_TASKS*BUFFER_SIZE,
-                      str = name, learning_rate=0.01, e_greedy=0.9, e_greedy_increment = 0.005)
+                      str = 'contextual_bandit_net_'+('slope' if use_slope_as_reward else 'diff2mean'),
+                      learning_rate=0.01, e_greedy=0.9, e_greedy_increment = 0.005)
     n_trials = np.zeros(N_TASKS)+BUFFER_SIZE
     rewards_buffer = init_rewards_buffer(agent)
     for _ in range(N_TOTAL_EPISODES-N_TASKS*BUFFER_SIZE):
         s = np.hstack(rewards_buffer)
         idx, _ = contextual_bandit.sample_arm(s)
-        hallway_length = tasks[idx]
-        print('Hallway length:', hallway_length)
-        env = LongHallway(hallway_length,MAX_EPISODE_LENGTH)
+        r = run_task(idx,agent)        
         buffer_idx = int(n_trials[idx] % BUFFER_SIZE)
-        r = run(env,agent,1)[0]
         avg_reward_so_far = np.mean(rewards_buffer[idx])
         rewards_buffer[idx][buffer_idx] = r
         rewards.append(r)
@@ -156,9 +143,7 @@ def train_with_Contextual_Bandit_ACL(agent, use_slope_as_reward= True):
 
 def train_with_RL_ACL(agent, use_slope_as_reward= True):
     agent.reset()    
-    rewards = []
-    n_trials_list = []
-    learning_progress_list = []
+    rewards, n_trials_list, learning_progress_list = [],[],[]
     if use_slope_as_reward:
         name = 'rl_curr_learning_net_slope'
     else:
@@ -173,11 +158,8 @@ def train_with_RL_ACL(agent, use_slope_as_reward= True):
     for _ in range(N_TOTAL_EPISODES-N_TASKS*BUFFER_SIZE):
         s = np.hstack(rewards_buffer)
         idx = curr_agent.choose_action(s)
-        hallway_length = tasks[idx]
-        print('Hallway length:', hallway_length)
-        env = LongHallway(hallway_length,MAX_EPISODE_LENGTH)
+        r = run_task(idx,agent)        
         buffer_idx = int(n_trials[idx] % BUFFER_SIZE)
-        r = run(env,agent,1)[0]
         avg_reward_so_far = np.mean(rewards_buffer[idx])
         rewards_buffer[idx][buffer_idx] = r
         rewards.append(r)
@@ -209,7 +191,6 @@ def plot_n_trials(n_trials, y_label, str):
     plt.legend(tasks)
     plt.savefig('./Results/'+str)
     plt.show()
-
 
 if __name__ == "__main__":
     agent = DeepQNetwork(n_actions=3,
