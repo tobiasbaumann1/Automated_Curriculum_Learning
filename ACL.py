@@ -21,15 +21,16 @@ class Bandit(object):
 		self.weights[a] += self.step_size * r / self.get_arm_probabilities()[a] #only Exp3 so far, not Exp3.S!
 
 class Contextual_Bandit(object):
-	def __init__(self, n_arms, n_features, e_greedy = 0.9, e_greedy_increment = None, learning_rate = 0.01):
+	def __init__(self, n_arms, n_features, str = '', e_greedy = 0.9, e_greedy_increment = None, learning_rate = 0.01):
 		self.n_arms = n_arms
 		self.n_features = n_features
 		self.epsilon_max = e_greedy
 		self.epsilon_increment = e_greedy_increment
 		self.epsilon = 0 if e_greedy_increment is not None else self.epsilon_max
 		self.learning_rate = learning_rate
-		self._build_net('contextual_bandit_regressor_')
+		self._build_net(str)
 		self.sess = tf.Session()
+		self.sess.run(tf.global_variables_initializer())
 
 	def _build_net(self, str):
 	    # ------------------ build evaluate_net ------------------
@@ -60,7 +61,7 @@ class Contextual_Bandit(object):
 	        self._train_op = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.loss)
 		
 	def sample_arm(self, s):		
-		argmax = np.argmax(self.sess.run([self.r], feed_dict={self.s: s,}))
+		argmax = np.argmax(self.sess.run([self.r], feed_dict={self.s: s[np.newaxis, :]}))
 		p = self.get_arm_probabilities(argmax)
 		a = np.random.choice(self.n_arms, p = p)
 		importance_weight = 1 / p[a]
@@ -72,14 +73,14 @@ class Contextual_Bandit(object):
 		return p
 
 	def learn(self, s, a, r):
-		r_eval = self.sess.run([self.r], feed_dict={self.s: s,})
-		r_target = r_eval.copy()
+		r_eval = self.sess.run([self.r], feed_dict={self.s: s[np.newaxis, :]})
+		r_target = np.array(r_eval).flatten()
 		r_target[a] = r
 		_, self.cost = self.sess.run([self._train_op, self.loss],
-                             		feed_dict={self.s: s,
-                                    self.r_target: r_target})
+                             		feed_dict={self.s: s[np.newaxis, :],
+                                    self.r_target: r_target[np.newaxis, :]})
 		# importance weight? add in tensorflow computations and as argument to learn etc.
 		# increase epsilon
-		if self.epsilon < self.eps_greedy_max:
-			self.epsilon += self.eps_greedy_increment
+		if self.epsilon < self.epsilon_max:
+			self.epsilon += self.epsilon_increment
 
