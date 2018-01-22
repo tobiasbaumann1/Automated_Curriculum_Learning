@@ -265,6 +265,7 @@ if __name__ == "__main__":
     plot_n_trials(n_trials_rl_acl_diff2mean,'Number of trials','n_trials_rl_acl_diff2mean')
 
     plot_data(learning_progress_bandit_acl_slope,'Learning progress','learning_progress_bandit_acl_slope')
+    plot_data(learning_progress_cbandit_acl,'Learning progress','learning_progress_cbandit_acl')
     plot_data(learning_progress_bandit_acl_diff2mean,'Learning progress','learning_progress_bandit_acl_diff2mean')
     plot_data(learning_progress_rl_acl_slope,'Learning progress','learning_progress_rl_acl_slope')
     plot_data(learning_progress_rl_acl_diff2mean,'Learning progress','learning_progress_rl_acl_diff2mean')
