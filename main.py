@@ -61,7 +61,7 @@ def calc_slope_on_all_tasks(rewards_buffer, n_trials):
 
 def train_final_task(agent):    
     agent.reset()
-    return run_task_n_times(N_TASKS-1,N_TOTAL_EPISODES,agent)
+    return run_task_n_times(N_TASKS-1,N_TOTAL_EPISODES,agent), None, None
 
 def train_manual_curriculum(agent):    
     agent.reset()
@@ -72,9 +72,9 @@ def train_manual_curriculum(agent):
         for _ in range(n_episodes_per_task):
             n_trials[i] += 1
             n_trials_list.append(n_trials.copy())
-    return rewards, n_trials_list
+    return rewards, n_trials_list, None
 
-def train_uniform_samplling(agent):    
+def train_uniform_sampling(agent):    
     agent.reset()
     rewards, n_trials_list, n_trials = [],[],np.zeros(N_TASKS)
     for _ in range(N_TOTAL_EPISODES):
@@ -83,7 +83,7 @@ def train_uniform_samplling(agent):
         rewards.append(r)
         n_trials[idx] += 1
         n_trials_list.append(n_trials.copy())
-    return rewards, n_trials_list
+    return rewards, n_trials_list, None
 
 def init_rewards_buffer(agent):
     rewards_buffer = np.zeros([N_TASKS, BUFFER_SIZE])
@@ -171,22 +171,21 @@ def train_ACL_RL(agent, use_slope_as_reward= True):
         curr_agent.learn()
     return rewards, n_trials_list, learning_progress_list
 
-def plot_data(data, y_label, str):
+def plot_data(data, variant_str):
+    if 'n_trials' in variant_str:
+        data = np.array(data)
     plt.plot(data)
     plt.xlabel('Episode')
-    plt.ylabel(y_label)
-    plt.title(str)
-    plt.savefig('./Results/'+str)
+    y_labels = ['rewards','n_trials','learning_progress']
+    for y_label in y_labels:
+        if y_label in variant_str:
+            plt.ylabel(y_label)    
+    plt.title(variant_str)
+    plt.legend(tasks)
+    plt.savefig('./Results/'+variant_str)
     plt.show()
 
-def plot_n_trials(n_trials, y_label, str):
-    plt.plot(np.array(n_trials))
-    plt.xlabel('Episode')
-    plt.ylabel(y_label)    
-    plt.title(str)
-    plt.legend(tasks)
-    plt.savefig('./Results/'+str)
-    plt.show()
+    plt.plot(data)
 
 if __name__ == "__main__":
     agent = DeepQNetwork(n_actions=3,
@@ -205,37 +204,14 @@ if __name__ == "__main__":
     }
     results = {}
 
-    results['test'] = train_final_task(agent),4
-
     for k in str_map:
         print(str_map[k])
-        results[k] = locals()['train_'+k](agent)
+        results[k+'_rewards'],results[k+'_n_trials'],results[k+'_learning_progress'] = locals()['train_'+k](agent)
+
+    for k in results:
+        if results[k] is not None:
+            plot_data(results[k],k)
     
-
-
-    plot_data(rewards_final_task_only,'Reward','rewards_final_task_only')
-    plot_data(rewards_manual_curr,'Reward','rewards_manual_curr')
-    plot_data(rewards_uniform_sampling,'Reward','rewards_uniform_sampling')
-    plot_data(rewards_bandit_acl_slope,'Reward','rewards_bandit_acl_slope')
-    plot_data(rewards_rl_acl_slope,'Reward','rewards_rl_acl_slope')
-    plot_data(rewards_cbandit_acl,'Reward','rewards_cbandit_acl')
-    plot_data(rewards_bandit_acl_diff2mean,'Reward','rewards_bandit_acl_diff2mean')
-    plot_data(rewards_rl_acl_diff2mean,'Reward','rewards_rl_acl_diff2mean')
-
-    plot_n_trials(n_trials_manual_curr,'Number of trials','n_trials_manual_curr')
-    plot_n_trials(n_trials_uniform_sampling,'Number of trials','n_trials_uniform_sampling')
-    plot_n_trials(n_trials_bandit_acl_slope,'Number of trials','n_trials_bandit_acl_slope')
-    plot_n_trials(n_trials_cbandit_acl,'Number of trials','n_trials_cbandit_acl')
-    plot_n_trials(n_trials_bandit_acl_diff2mean,'Number of trials','n_trials_bandit_acl_diff2mean')
-    plot_n_trials(n_trials_rl_acl_slope,'Number of trials','n_trials_rl_acl_slope')
-    plot_n_trials(n_trials_rl_acl_diff2mean,'Number of trials','n_trials_rl_acl_diff2mean')
-
-    plot_data(learning_progress_bandit_acl_slope,'Learning progress','learning_progress_bandit_acl_slope')
-    plot_data(learning_progress_cbandit_acl,'Learning progress','learning_progress_cbandit_acl')
-    plot_data(learning_progress_bandit_acl_diff2mean,'Learning progress','learning_progress_bandit_acl_diff2mean')
-    plot_data(learning_progress_rl_acl_slope,'Learning progress','learning_progress_rl_acl_slope')
-    plot_data(learning_progress_rl_acl_diff2mean,'Learning progress','learning_progress_rl_acl_diff2mean')
-
     # print('Automated curriculum learning using bandit algorithm, using difference to mean as reward...')
     # rewards_bandit_acl_diff2mean, n_trials_bandit_acl_diff2mean, learning_progress_bandit_acl_diff2mean = train_with_bandit_ACL(agent, False)
     # print('Automated curriculum learning using reinforcement learning, using difference to mean as reward...')
