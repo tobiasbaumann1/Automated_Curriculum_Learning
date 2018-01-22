@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
 from Agents import DeepQNetwork
-from ACL import Bandit
+from ACL import Bandit, Contextual_Bandit
 from Environments import LongHallway
 
 MIN_HALLWAY_LENGTH = 10
@@ -119,15 +119,52 @@ def train_with_bandit_ACL(agent, use_slope_as_reward = True):
         bandit.update_weights(idx,abs(learning_progress))
     return rewards, n_trials_list, learning_progress_list
 
+def train_with_Contextual_Bandit_ACL(agent, use_slope_as_reward= True):
+    agent.reset()    
+    rewards = []
+    n_trials_list = []
+    learning_progress_list = []
+    if use_slope_as_reward:
+        name = 'contextual_bandit_net_slope'
+    else:
+        name = 'contextual_bandit_net_diff2mean'
+    contextual_bandit = Contextual_Bandit(n_actions=N_TASKS,
+                      n_features=N_TASKS*BUFFER_SIZE,
+                      str = name,
+                      learning_rate=0.01, e_greedy=0.9, e_greedy_increment = 0.005,
+                      replace_target_iter=5, memory_size=100)
+    n_trials = np.zeros(N_TASKS)+BUFFER_SIZE
+    rewards_buffer = init_rewards_buffer(agent)
+    for _ in range(N_TOTAL_EPISODES-N_TASKS*BUFFER_SIZE):
+        s = np.hstack(rewards_buffer)
+        idx = contextual_bandit.sample_arm(s)
+        hallway_length = tasks[idx]
+        print('Hallway length:', hallway_length)
+        env = LongHallway(hallway_length,MAX_EPISODE_LENGTH)
+        buffer_idx = int(n_trials[idx] % BUFFER_SIZE)
+        r = run(env,agent,1)[0]
+        avg_reward_so_far = np.mean(rewards_buffer[idx])
+        rewards_buffer[idx][buffer_idx] = r
+        rewards.append(r)
+        n_trials[idx] += 1
+        n_trials_list.append(n_trials.copy())
+        if use_slope_as_reward:
+            learning_progress = calc_slope(np.concatenate([rewards_buffer[idx,(buffer_idx+1):],rewards_buffer[idx,:(buffer_idx+1)]]))
+        else:
+            learning_progress = r - avg_reward_so_far
+        learning_progress_list.append(learning_progress)
+        contextual_bandit.learn(s,idx,learning_progress)
+    return rewards, n_trials_list, learning_progress_list
+
 def train_with_RL_ACL(agent, use_slope_as_reward= True):
     agent.reset()    
     rewards = []
     n_trials_list = []
     learning_progress_list = []
     if use_slope_as_reward:
-        name = 'curr_learning_net_slope'
+        name = 'rl_curr_learning_net_slope'
     else:
-        name = 'curr_learning_net_diff2mean'
+        name = 'rl_curr_learning_net_diff2mean'
     curr_agent = DeepQNetwork(n_actions=N_TASKS,
                       n_features=N_TASKS*BUFFER_SIZE,
                       str = name,
@@ -154,7 +191,6 @@ def train_with_RL_ACL(agent, use_slope_as_reward= True):
         else:
             learning_progress = r - avg_reward_so_far
         learning_progress_list.append(learning_progress)
-        print('Learning progress:', learning_progress)
         curr_agent.store_transition(s, idx, learning_progress, s_)
         curr_agent.learn()
     return rewards, n_trials_list, learning_progress_list
