@@ -10,7 +10,7 @@ MAX_HALLWAY_LENGTH = 100
 N_TASKS = 10
 BUFFER_SIZE = 10
 MAX_EPISODE_LENGTH = 500
-N_TOTAL_EPISODES = 200
+N_TOTAL_EPISODES = 20
 
 
 def run(env,agent,n_episodes):
@@ -59,11 +59,11 @@ def calc_slope_on_all_tasks(rewards_buffer, n_trials):
         slope.append(calc_slope(np.concatenate([rewards_buffer[i,(buffer_idx+1):],rewards_buffer[i,:(buffer_idx+1)]])))
     return np.array(slope)
 
-def train_on_final_task_only(agent):    
+def train_final_task(agent):    
     agent.reset()
     return run_task_n_times(N_TASKS-1,N_TOTAL_EPISODES,agent)
 
-def train_with_manual_curriculum(agent):    
+def train_manual_curriculum(agent):    
     agent.reset()
     rewards, n_trials_list, n_trials = [],[],np.zeros(N_TASKS)
     n_episodes_per_task = int(N_TOTAL_EPISODES/N_TASKS)
@@ -74,7 +74,7 @@ def train_with_manual_curriculum(agent):
             n_trials_list.append(n_trials.copy())
     return rewards, n_trials_list
 
-def train_with_uniform_samplling(agent):    
+def train_uniform_samplling(agent):    
     agent.reset()
     rewards, n_trials_list, n_trials = [],[],np.zeros(N_TASKS)
     for _ in range(N_TOTAL_EPISODES):
@@ -91,7 +91,7 @@ def init_rewards_buffer(agent):
         rewards_buffer[i] = np.array(run_task_n_times(i, BUFFER_SIZE,agent))
     return rewards_buffer
 
-def train_with_bandit_ACL(agent, use_slope_as_reward = True):
+def train_ACL_bandit(agent, use_slope_as_reward = True):
     agent.reset()
     bandit = Bandit(N_TASKS)    
     rewards, n_trials_list, learning_progress_list = [],[],[]
@@ -114,7 +114,7 @@ def train_with_bandit_ACL(agent, use_slope_as_reward = True):
         bandit.update_weights(idx,abs(learning_progress))
     return rewards, n_trials_list, learning_progress_list
 
-def train_with_Contextual_Bandit_ACL(agent, use_slope_as_reward= True):
+def train_ACL_contextual_bandit(agent, use_slope_as_reward= True):
     agent.reset()    
     rewards, n_trials_list, learning_progress_list = [],[],[]
     contextual_bandit = Contextual_Bandit(n_arms=N_TASKS,
@@ -141,16 +141,12 @@ def train_with_Contextual_Bandit_ACL(agent, use_slope_as_reward= True):
         contextual_bandit.learn(s,idx,learning_progress)
     return rewards, n_trials_list, learning_progress_list
 
-def train_with_RL_ACL(agent, use_slope_as_reward= True):
+def train_ACL_RL(agent, use_slope_as_reward= True):
     agent.reset()    
     rewards, n_trials_list, learning_progress_list = [],[],[]
-    if use_slope_as_reward:
-        name = 'rl_curr_learning_net_slope'
-    else:
-        name = 'rl_curr_learning_net_diff2mean'
     curr_agent = DeepQNetwork(n_actions=N_TASKS,
                       n_features=N_TASKS*BUFFER_SIZE,
-                      str = name,
+                      str = 'rl_curr_learning_net_'+('slope' if use_slope_as_reward else 'diff2mean'),
                       learning_rate=0.01, e_greedy=0.9, e_greedy_increment = 0.005,
                       replace_target_iter=5, memory_size=100)
     n_trials = np.zeros(N_TASKS)+BUFFER_SIZE
@@ -199,34 +195,23 @@ if __name__ == "__main__":
                       replace_target_iter=100, memory_size=2000)
     tasks = np.rint(np.linspace(MIN_HALLWAY_LENGTH,MAX_HALLWAY_LENGTH,N_TASKS))
 
+    str_map = {
+        'final_task':'Training on final task only',
+        'manual_curriculum':'Training with manual curriculum',
+        'uniform_sampling':'Training with uniform sampling',
+        'ACL_bandit':'Automated curriculum learning using bandit algorithm',
+        'ACL_contextual_bandit':'Automated curriculum learning using contextual bandit algorithm',
+        'ACL_RL':'Automated curriculum learning using reinforcement learning',
+    }
+    results = {}
+
+    results['test'] = train_final_task(agent),4
+
+    for k in str_map:
+        print(str_map[k])
+        results[k] = locals()['train_'+k](agent)
     
-    #Run without curriculum
-    print('Training on final task only...')
-    rewards_final_task_only = train_on_final_task_only(agent)
 
-    #Run with manual curriculum
-    print('Training with manual curriculum...')
-    rewards_manual_curr, n_trials_manual_curr = train_with_manual_curriculum(agent)
-
-    #Run with uniform sampling
-    print('Training with uniform sampling...')
-    rewards_uniform_sampling, n_trials_uniform_sampling = train_with_uniform_samplling(agent)
-
-    #Run with bandit curriculum
-    print('Automated curriculum learning using bandit algorithm, using slope as reward...')
-    rewards_bandit_acl_slope, n_trials_bandit_acl_slope, learning_progress_bandit_acl_slope = train_with_bandit_ACL(agent, True)
-    print('Automated curriculum learning using bandit algorithm, using difference to mean as reward...')
-    rewards_bandit_acl_diff2mean, n_trials_bandit_acl_diff2mean, learning_progress_bandit_acl_diff2mean = train_with_bandit_ACL(agent, False)
-
-    #Run with contextual bandit
-    print('Automated curriculum learning using contextual bandit algorithm')
-    rewards_cbandit_acl, n_trials_cbandit_acl, learning_progress_cbandit_acl = train_with_Contextual_Bandit_ACL(agent, True)
-
-    #Run with RL curriculum
-    print('Automated curriculum learning using reinforcement learning, using slope as reward...')
-    rewards_rl_acl_slope, n_trials_rl_acl_slope, learning_progress_rl_acl_slope = train_with_RL_ACL(agent, True)
-    print('Automated curriculum learning using reinforcement learning, using difference to mean as reward...')
-    rewards_rl_acl_diff2mean, n_trials_rl_acl_diff2mean, learning_progress_rl_acl_diff2mean = train_with_RL_ACL(agent, False)
 
     plot_data(rewards_final_task_only,'Reward','rewards_final_task_only')
     plot_data(rewards_manual_curr,'Reward','rewards_manual_curr')
@@ -251,3 +236,7 @@ if __name__ == "__main__":
     plot_data(learning_progress_rl_acl_slope,'Learning progress','learning_progress_rl_acl_slope')
     plot_data(learning_progress_rl_acl_diff2mean,'Learning progress','learning_progress_rl_acl_diff2mean')
 
+    # print('Automated curriculum learning using bandit algorithm, using difference to mean as reward...')
+    # rewards_bandit_acl_diff2mean, n_trials_bandit_acl_diff2mean, learning_progress_bandit_acl_diff2mean = train_with_bandit_ACL(agent, False)
+    # print('Automated curriculum learning using reinforcement learning, using difference to mean as reward...')
+    # rewards_rl_acl_diff2mean, n_trials_rl_acl_diff2mean, learning_progress_rl_acl_diff2mean = train_with_RL_ACL(agent, False)
