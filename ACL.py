@@ -9,7 +9,7 @@ class Bandit(object):
 		self.weights = np.zeros(n_arms)
 		self.t = 0
 
-	def sample_arm(self):
+	def choose_action(self):
 		self.t += 1
 		return np.random.choice(self.n_arms, p = self.get_arm_probabilities())
 
@@ -60,12 +60,12 @@ class Contextual_Bandit(object):
 	    with tf.variable_scope('train'):
 	        self._train_op = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.loss)
 		
-	def sample_arm(self, s):		
+	def choose_action(self, s):		
 		argmax = np.argmax(self.sess.run([self.r], feed_dict={self.s: s[np.newaxis, :]}))
 		p = self.get_arm_probabilities(argmax)
 		a = np.random.choice(self.n_arms, p = p)
-		importance_weight = 1 / p[a]
-		return a, importance_weight
+		#importance_weight = 1 / p[a]
+		return a
 
 	def get_arm_probabilities(self, argmax):
 		p = np.full(self.n_arms, fill_value = (1-self.epsilon)/self.n_arms)
