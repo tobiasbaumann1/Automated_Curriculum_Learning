@@ -35,6 +35,31 @@ class Environment(object):
         else:
             return False
 
+    def run(self,agent,n_episodes,learning_active = True):
+        reward_list = []
+        for i in range(n_episodes):
+            observation = self.reset()
+            ep_r = 0
+            while True:
+                action = agent.choose_action(observation)
+
+                observation_, reward, done = self.step(action)
+
+                agent.store_transition(observation, action, reward, observation_)
+
+                ep_r += reward
+                if learning_active:
+                    agent.learn()
+
+                if done:
+                    if i % 10 == 0 and i > 0:
+                        print('Episode {} done.'.format(i))
+                    reward_list.append(ep_r)
+                    break
+
+                observation = observation_
+        return reward_list
+
 class LongHallway(Environment):
     def __init__(self, hallway_length, MAX_EPISODE_LENGTH):
         super().__init__(3, 2, MAX_EPISODE_LENGTH) #2 features: task label (the hallway length) and current position

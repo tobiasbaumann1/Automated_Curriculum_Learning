@@ -9,7 +9,7 @@ class Bandit(object):
 		self.weights = np.zeros(n_arms)
 		self.t = 0
 
-	def choose_action(self):
+	def choose_action(self, *args):
 		self.t += 1
 		return np.random.choice(self.n_arms, p = self.get_arm_probabilities())
 
