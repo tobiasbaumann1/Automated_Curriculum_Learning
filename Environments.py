@@ -45,7 +45,9 @@ class Environment(object):
 
                 observation_, reward, done = self.step(action)
 
-                agent.store_transition(observation, action, reward, observation_)
+
+                if learning_active:
+                    agent.store_transition(observation, action, reward, observation_)
 
                 ep_r += reward
                 if learning_active:
@@ -74,7 +76,10 @@ class LongHallway(Environment):
         return np.zeros(1) # start at the left of the hallway
 
     def state_to_observation(self):
-        return np.array([self.s,self.hallway_length])
+        # 0 represents open space, 1 a wall, 2 the goal
+        left = 1 if self.s == 0 else 0
+        right = 2 if self.s == self.hallway_length - 1 else 0 
+        return np.array([left,right])
 
     def calculate_reward(self, actions):
         if self.s == self.hallway_length:
