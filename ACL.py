@@ -21,14 +21,14 @@ class Bandit(object):
 		self.weights[a] += self.step_size * r / self.get_arm_probabilities()[a] #only Exp3 so far, not Exp3.S!
 
 class Contextual_Bandit(object):
-	def __init__(self, n_arms, n_features, str = '', e_greedy = 0.9, e_greedy_increment = None, learning_rate = 0.01):
+	def __init__(self, n_arms, n_features, name = '', e_greedy = 0.9, e_greedy_increment = None, learning_rate = 0.01):
 		self.n_arms = n_arms
 		self.n_features = n_features
 		self.epsilon_max = e_greedy
 		self.epsilon_increment = e_greedy_increment
 		self.epsilon = 0 if e_greedy_increment is not None else self.epsilon_max
 		self.learning_rate = learning_rate
-		self._build_net(str)
+		self._build_net(name)
 		self.sess = tf.Session()
 		self.sess.run(tf.global_variables_initializer())
 

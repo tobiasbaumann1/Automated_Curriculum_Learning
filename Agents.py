@@ -15,7 +15,7 @@ class Agent(object):
 # Deep Q Network off-policy
 class DeepQNetwork(Agent):
     def __init__(
-            self, n_actions, n_features, str= '', learning_rate=0.001, gamma = 0.95,
+            self, n_actions, n_features, name= '', learning_rate=0.001, gamma = 0.95,
             e_greedy=0.9,
             replace_target_iter=300,
             memory_size=500,
@@ -38,7 +38,7 @@ class DeepQNetwork(Agent):
         self.memory = np.zeros((self.memory_size, n_features * 2 + 2))
 
         # consist of [target_net, evaluate_net]
-        self._build_net(str)
+        self._build_net(name)
         t_params = tf.get_collection('target_net_params')
         e_params = tf.get_collection('eval_net_params')
         self.replace_target_op = [tf.assign(t, e) for t, e in zip(t_params, e_params)]

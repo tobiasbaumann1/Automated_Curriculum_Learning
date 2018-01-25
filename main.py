@@ -13,8 +13,8 @@ FINAL_TASK_INDEX = N_TASKS - 1
 BUFFER_SIZE = 10
 MAX_EPISODE_LENGTH = 500
 N_TOTAL_EPISODES = 200
-PERFORMANCE_TEST_INTERVAL = 50
-N_TRAJECTORIES = 3
+PERFORMANCE_TEST_INTERVAL = 20
+N_TRAJECTORIES = 20
 
 class Variant(Enum):
     FINAL_TASK = 'Training on final task only'
@@ -34,7 +34,7 @@ def run_task_n_times(idx,n,agent,learning_active = True):
     env = LongHallway(hallway_length,MAX_EPISODE_LENGTH)
     return env.run(agent,n,learning_active)
 
-def test_performance(agent, n_test_episodes = 10):
+def test_performance(agent, n_test_episodes = 5):
     return np.mean(run_task_n_times(FINAL_TASK_INDEX,n_test_episodes,agent,learning_active = False))
 
 def calc_slope(Y):
@@ -64,12 +64,12 @@ def init_teacher(variant, name = ''):
     if variant == Variant.ACL_CONTEXTUAL_BANDIT:
         return Contextual_Bandit(n_arms=N_TASKS,
                       n_features=N_TASKS*BUFFER_SIZE,
-                      str = 'contextual_bandit_net' + name,
+                      name = 'contextual_bandit_net' + name,
                       learning_rate=0.01, e_greedy=0.9, e_greedy_increment = 0.005)
     if variant == Variant.ACL_RL:
         return DeepQNetwork(n_actions=N_TASKS,
                       n_features=N_TASKS*BUFFER_SIZE,
-                      str = 'rl_curr_learning_net' + name,
+                      name = 'rl_curr_learning_net' + name,
                       learning_rate=0.01, e_greedy=0.9, e_greedy_increment = 0.005,
                       replace_target_iter=5, memory_size=100)
 
@@ -121,13 +121,20 @@ def plot_data(data, variant_str):
         plt.figure()
         if 'n_trials' in variant_str:
             data = np.array(data)
-            plt.legend(tasks)
-        if 'one_shot' in variant_str:
-            #data = np.transpose(np.array(data))
+        # if 'one_shot' in variant_str:
+        #     #data = np.transpose(np.array(data))
+        #     #x = np.arange(0,N_TOTAL_EPISODES,step = PERFORMANCE_TEST_INTERVAL)
+        #     for trajectory in data:
+        #         plt.plot(trajectory)
+        #     #plt.legend(range(N_TRAJECTORIES))
+        # else: 
+        if 'test_performance' in variant_str and not 'one_shot' in variant_str:
             x = np.arange(0,N_TOTAL_EPISODES,step = PERFORMANCE_TEST_INTERVAL)
-            for trajectory in data:
-                plt.plot(x,trajectory)
-            plt.legend(range(N_TRAJECTORIES))
+            plt.plot(x,data)
+        else:
+            plt.plot(data)
+        if 'n_trials' in variant_str:
+            plt.legend(tasks)
         plt.xlabel('Episode')
         y_labels = ['rewards','n_trials','learning_progress','test_performance']
         for y_label in y_labels:
@@ -135,6 +142,7 @@ def plot_data(data, variant_str):
                 plt.ylabel(y_label)    
         plt.title(variant_str)
         plt.savefig('./Results/'+variant_str)
+        plt.close()
 
 def train_all_variants(student):
     results = {}
@@ -156,26 +164,25 @@ def train_perfect_curriculum(student, n_trajectories):
         # call corresponding training function n_trajectories times
         for _ in range(n_trajectories):
             _,_,_,test_performance_list = train(student,variant,teacher = teacher)
-            print(test_performance_list)
-            test_performance_trajectories.append(test_performance_list)
-        print(test_performance_trajectories)        
+            print(test_performance_list[-1])
+            test_performance_trajectories.append(test_performance_list[-1])
         results[description+'_one_shot'+'_test_performance'] = test_performance_trajectories
     return results    
 
-def train_curriculum_many_students(students):
-    results = {}
-    for variant in filter(is_automated_curriculum_learning, Variant):
-        description = variant.value
-        print('Finding perfect curriculum: ', description)
-        teacher = init_teacher(variant,'perfect_curriculum')
-        test_performance_trajectories = []
-        for student in students:
-            # call training function
-            _,_,_,test_performance_list = train(student,variant,teacher = teacher)
-            test_performance_trajectories.append(test_performance_list)
+# def train_curriculum_many_students(students):
+#     results = {}
+#     for variant in filter(is_automated_curriculum_learning, Variant):
+#         description = variant.value
+#         print('Finding perfect curriculum: ', description)
+#         teacher = init_teacher(variant,'perfect_curriculum')
+#         test_performance_trajectories = []
+#         for student in students:
+#             # call training function
+#             _,_,_,test_performance_list = train(student,variant,teacher = teacher)
+#             test_performance_trajectories.append(test_performance_list)
         
-        results[description+'_many_students'+'_test_performance'] = test_performance_trajectories
-    return results    
+#         results[description+'_many_students'+'_test_performance'] = test_performance_trajectories
+#     return results    
 
 if __name__ == "__main__":
     student = DeepQNetwork(n_actions=3, n_features=2, learning_rate=0.01, 
@@ -183,8 +190,12 @@ if __name__ == "__main__":
     tasks = np.rint(np.linspace(MIN_HALLWAY_LENGTH,MAX_HALLWAY_LENGTH,N_TASKS))
 
     results = {}
-    #results.update(train_all_variants(student))
+    results.update(train_all_variants(student))
     results.update(train_perfect_curriculum(student, N_TRAJECTORIES))
+
     for k in results:
         plot_data(results[k],k)
+    # student_population = [DeepQNetwork(n_actions=3, n_features=2, name = str(lr), learning_rate=0.01, 
+    #     e_greedy=0.9, replace_target_iter=100, memory_size=2000) for lr in np.arange(0.01,0.1,0.01)]
+    # results.update(train_curriculum_many_students(student_population))
     
